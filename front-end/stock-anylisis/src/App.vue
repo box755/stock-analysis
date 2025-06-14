@@ -8,13 +8,12 @@
             股票分析系統
           </h1>
           <el-menu
-              :default-active="activeIndex"
-              class="header-menu"
-              mode="horizontal"
-              router
+            :default-active="activeIndex"
+            class="header-menu"
+            mode="horizontal"
+            router
           >
-            <el-menu-item index="/stocks">股票數據分析</el-menu-item>
-            <el-menu-item index="/sentiment">情感分析</el-menu-item>
+            <el-menu-item index="/">公司列表</el-menu-item>
           </el-menu>
         </div>
       </el-header>

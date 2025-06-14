@@ -1,187 +1,151 @@
 <template>
   <div class="sentiment-analysis">
-    <el-card class="header-card">
+    <el-card class="news-list-card">
       <template #header>
         <div class="card-header">
-          <span>情感分析</span>
-          <div class="header-actions">
-            <el-select
-                v-model="selectedCompany"
-                placeholder="选择公司"
-                style="margin-right: 10px; width: 150px"
-                @change="handleCompanyChange"
-            >
-              <el-option
-                  v-for="company in companies"
-                  :key="company"
-                  :label="company === 'all' ? '全部公司' : company"
-                  :value="company"
-              />
-            </el-select>
-            <el-button
-                type="primary"
-                @click="refreshData"
-                :loading="loading"
-            >
-              <el-icon><Refresh /></el-icon>
-              刷新
-            </el-button>
-          </div>
+          <h2>新聞情感分析</h2>
+          <el-button type="primary" @click="refreshNews" :loading="loading">
+            刷新數據
+          </el-button>
         </div>
       </template>
 
-      <!-- 情感分析摘要 -->
-      <div v-if="sentimentSummary" class="summary-section">
-        <el-row :gutter="20">
-          <el-col :span="6">
-            <el-statistic title="总数据量" :value="sentimentSummary.total" />
-          </el-col>
-          <el-col :span="6">
-            <el-statistic title="平均影响力" :value="sentimentSummary.avgImpact" suffix="%" />
-          </el-col>
-          <el-col :span="4">
-            <el-statistic title="正面" :value="sentimentSummary.positive">
-              <template #suffix>
-                <el-icon style="color: #67c23a;"><CaretTop /></el-icon>
-              </template>
-            </el-statistic>
-          </el-col>
-          <el-col :span="4">
-            <el-statistic title="中性" :value="sentimentSummary.neutral">
-              <template #suffix>
-                <el-icon style="color: #e6a23c;"><Minus /></el-icon>
-              </template>
-            </el-statistic>
-          </el-col>
-          <el-col :span="4">
-            <el-statistic title="负面" :value="sentimentSummary.negative">
-              <template #suffix>
-                <el-icon style="color: #f56c6c;"><CaretBottom /></el-icon>
-              </template>
-            </el-statistic>
-          </el-col>
-        </el-row>
-      </div>
-    </el-card>
-
-    <!-- 情感数据列表 -->
-    <el-card class="data-card">
-      <template #header>
-        <h3>情感分析数据</h3>
-      </template>
-
-      <div v-loading="loading" class="sentiment-list">
-        <div
-            v-for="item in filteredSentimentData"
-            :key="item.time_iso"
-            class="sentiment-item"
+      <!-- 新聞列表 -->
+      <el-table
+        v-loading="loading"
+        :data="newsList"
+        style="width: 100%"
+      >
+        <el-table-column
+          prop="date"
+          label="日期"
+          width="120"
+          sortable
+        />
+        <el-table-column
+          prop="company"
+          label="公司"
+          width="120"
+        />
+        <el-table-column
+          prop="text"
+          label="新聞內容"
+          show-overflow-tooltip
         >
-          <div class="item-header">
-            <div class="company-info">
-              <el-tag type="primary" size="small">{{ item.company }}</el-tag>
-              <span class="date">{{ formatDate(item.time_iso) }}</span>
+          <template #default="{ row }">
+            <div class="news-content">
+              {{ row.text }}
             </div>
-            <div class="impact-score">
-              <span class="score-label">影响力评分：</span>
-              <el-progress
-                  :percentage="item.impact_pct"
-                  :color="getScoreColor(item.impact_pct)"
-                  :status="getScoreStatus(item.impact_pct)"
-                  :stroke-width="8"
-                  style="width: 200px;"
-              />
-              <span class="score-value">{{ item.impact_pct }}%</span>
-            </div>
-          </div>
-
-          <div class="item-content">
-            <p class="news-text">{{ getShortText(item.text) }}</p>
+          </template>
+        </el-table-column>
+        <el-table-column
+          prop="impact_pct"
+          label="影響程度"
+          width="120"
+          sortable
+        >
+          <template #default="{ row }">
+            <el-tag :type="getImpactLevel(row.impact_pct)">
+              {{ row.impact_pct }}%
+            </el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column
+          label="操作"
+          width="120"
+          fixed="right"
+        >
+          <template #default="{ $index }">
             <el-button
-                type="text"
-                size="small"
-                @click="toggleTextExpansion(item)"
-                v-if="item.text.length > 200"
+              size="small"
+              type="primary"
+              @click="analyzeNews($index)"
+              :loading="analyzing === $index"
             >
-              {{ item.expanded ? '收起' : '展开' }}
+              分析
             </el-button>
-          </div>
-        </div>
+          </template>
+        </el-table-column>
+      </el-table>
 
-        <el-empty v-if="filteredSentimentData.length === 0 && !loading" description="暂无数据" />
-      </div>
+      <!-- 分析結果對話框 -->
+      <el-dialog
+        v-model="showAnalysis"
+        title="AI 分析結果"
+        width="50%"
+      >
+        <div v-if="currentAnalysis" class="analysis-content">
+          {{ currentAnalysis }}
+        </div>
+      </el-dialog>
     </el-card>
 
-    <el-alert
-        v-if="error"
-        :title="error"
-        type="error"
-        class="error-alert"
-        show-icon
-    />
+    <pre>{{ newsList }}</pre> <!-- 測試用：顯示原始數據 -->
   </div>
 </template>
 
 <script setup>
-import { onMounted } from 'vue'
-import { useSentimentStore } from '@/stores/sentimentStore'
-import { storeToRefs } from 'pinia'
-import dayjs from 'dayjs'
+import { ref, onMounted } from 'vue'
+import axios from 'axios'
+import { ElMessage } from 'element-plus'
 
-const sentimentStore = useSentimentStore()
-const {
-  filteredSentimentData,
-  loading,
-  error,
-  companies,
-  selectedCompany,
-  sentimentSummary
-} = storeToRefs(sentimentStore)
+const newsList = ref([])
+const loading = ref(false)
+const analyzing = ref(null)
+const showAnalysis = ref(false)
+const currentAnalysis = ref('')
 
-const refreshData = () => {
-  sentimentStore.fetchSentimentData()
+// 載入新聞數據
+const fetchNews = async () => {
+  loading.value = true
+  try {
+    console.log('開始獲取新聞數據...')
+    const response = await axios.get('http://localhost:5001/api/news')
+    console.log('獲取數據成功:', response.data)
+    newsList.value = response.data
+  } catch (error) {
+    console.error('獲取新聞數據失敗:', error)
+    ElMessage.error(`獲取新聞數據失敗: ${error.response?.data?.error || error.message}`)
+  } finally {
+    loading.value = false
+  }
 }
 
-const handleCompanyChange = (company) => {
-  sentimentStore.setSelectedCompany(company)
+// 分析新聞
+const analyzeNews = async (index) => {
+  analyzing.value = index
+  try {
+    const response = await axios.get(`http://localhost:5001/api/analyze/${index}`)
+    currentAnalysis.value = response.data.analysis
+    showAnalysis.value = true
+  } catch (error) {
+    ElMessage.error('分析新聞失敗')
+    console.error(error)
+  } finally {
+    analyzing.value = null
+  }
 }
 
-const formatDate = (timeIso) => {
-  return dayjs(timeIso).format('YYYY年MM月DD日 HH:mm')
+// 根據影響程度返回標籤類型
+const getImpactLevel = (impact) => {
+  if (impact >= 70) return 'danger'
+  if (impact >= 50) return 'warning'
+  return 'info'
 }
 
-const getScoreColor = (score) => {
-  if (score >= 60) return '#67c23a'
-  if (score >= 40) return '#e6a23c'
-  return '#f56c6c'
-}
-
-const getScoreStatus = (score) => {
-  if (score >= 60) return 'success'
-  if (score >= 40) return 'warning'
-  return 'exception'
-}
-
-const getShortText = (text) => {
-  return text.length > 200 ? text.substring(0, 200) + '...' : text
-}
-
-const toggleTextExpansion = (item) => {
-  item.expanded = !item.expanded
+// 刷新數據
+const refreshNews = () => {
+  fetchNews()
 }
 
 onMounted(() => {
-  sentimentStore.fetchSentimentData()
+  fetchNews()
 })
 </script>
 
 <style scoped>
 .sentiment-analysis {
-  max-width: 1200px;
-  margin: 0 auto;
-}
-
-.header-card {
-  margin-bottom: 20px;
+  padding: 20px;
 }
 
 .card-header {
@@ -190,86 +154,18 @@ onMounted(() => {
   align-items: center;
 }
 
-.header-actions {
-  display: flex;
-  align-items: center;
+.news-content {
+  max-height: 3em;
+  line-height: 1.5;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
 }
 
-.summary-section {
-  margin-top: 20px;
-  padding: 20px;
-  background: #f8f9fa;
-  border-radius: 8px;
-}
-
-.data-card {
-  margin-bottom: 20px;
-}
-
-.sentiment-list {
-  max-height: 600px;
-  overflow-y: auto;
-}
-
-.sentiment-item {
-  border: 1px solid #ebeef5;
-  border-radius: 8px;
-  padding: 16px;
-  margin-bottom: 16px;
-  background: white;
-  transition: box-shadow 0.3s;
-}
-
-.sentiment-item:hover {
-  box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.1);
-}
-
-.item-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 12px;
-}
-
-.company-info {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.date {
-  color: #909399;
-  font-size: 14px;
-}
-
-.impact-score {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.score-label {
-  font-size: 14px;
-  color: #606266;
-}
-
-.score-value {
-  font-weight: 600;
-  color: #303133;
-  min-width: 50px;
-}
-
-.item-content {
-  color: #606266;
+.analysis-content {
+  white-space: pre-line;
   line-height: 1.6;
-}
-
-.news-text {
-  margin: 0;
-  word-break: break-all;
-}
-
-.error-alert {
-  margin-top: 20px;
 }
 </style>

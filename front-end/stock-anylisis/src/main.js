@@ -6,6 +6,7 @@ import 'element-plus/dist/index.css'
 import * as ElementPlusIconsVue from '@element-plus/icons-vue'
 import App from './App.vue'
 import './style.css'
+import { Chart, registerables } from 'chart.js'
 
 const app = createApp(App)
 const pinia = createPinia()
@@ -18,5 +19,6 @@ for (const [key, component] of Object.entries(ElementPlusIconsVue)) {
 app.use(pinia)
 app.use(router)
 app.use(ElementPlus)
+Chart.register(...registerables)
 
 app.mount('#app')
