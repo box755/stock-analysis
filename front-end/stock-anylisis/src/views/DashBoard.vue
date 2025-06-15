@@ -6,14 +6,24 @@
           <div class="welcome-content">
             <div class="welcome-text">
               <h1>股票数据分析平台</h1>
-              <p>欢迎使用股票数据分析平台，这里提供市场趋势分析、股票实时数据和智能预测功能。</p>
+              <p>
+                欢迎使用股票数据分析平台，这里提供市场趋势分析、股票实时数据和智能预测功能。
+              </p>
               <div class="action-buttons">
-                <el-button type="primary" @click="refreshDashboard" :loading="loading">
+                <el-button
+                  type="primary"
+                  @click="refreshDashboard"
+                  :loading="loading"
+                >
                   <el-icon><Refresh /></el-icon>
                   刷新数据
                 </el-button>
 
-                <el-radio-group v-model="selectedMarket" @change="switchMarket" size="large">
+                <el-radio-group
+                  v-model="selectedMarket"
+                  @change="switchMarket"
+                  size="large"
+                >
                   <el-radio-button label="TW">台灣市場</el-radio-button>
                   <el-radio-button label="US">美國市場</el-radio-button>
                 </el-radio-group>
@@ -34,12 +44,21 @@
             </div>
           </template>
           <div class="market-indexes">
-            <div class="index-item" :class="marketIndex.change >= 0 ? 'positive' : 'negative'">
-              <div class="index-name">{{ selectedMarket === 'TW' ? '加權指數' : 'S&P 500' }}</div>
-              <div class="index-price">{{ formatPrice(marketIndex.price) }}</div>
+            <div
+              class="index-item"
+              :class="marketIndex.change >= 0 ? 'positive' : 'negative'"
+            >
+              <div class="index-name">
+                {{ selectedMarket === "TW" ? "加權指數" : "S&P 500" }}
+              </div>
+              <div class="index-price">
+                {{ formatPrice(marketIndex.price) }}
+              </div>
               <div class="index-change">
-                {{ marketIndex.change >= 0 ? '+' : '' }}{{ formatPrice(marketIndex.change) }}
-                ({{ marketIndex.change >= 0 ? '+' : '' }}{{ formatPercent(marketIndex.change) }}%)
+                {{ marketIndex.change >= 0 ? "+" : ""
+                }}{{ formatPrice(marketIndex.change) }} ({{
+                  marketIndex.change >= 0 ? "+" : ""
+                }}{{ formatPercent(marketIndex.change) }}%)
                 <el-icon v-if="marketIndex.change >= 0"><CaretTop /></el-icon>
                 <el-icon v-else><CaretBottom /></el-icon>
               </div>
@@ -57,17 +76,19 @@
             <div class="card-header">
               <div class="title-section">
                 <el-icon><Coin /></el-icon>
-                <span>{{ selectedMarket === 'TW' ? '台灣熱門股票' : '美國熱門股票' }}</span>
+                <span>{{
+                  selectedMarket === "TW" ? "台灣熱門股票" : "美國熱門股票"
+                }}</span>
               </div>
               <div class="action-section">
                 <el-autocomplete
-                    class="search-input"
-                    v-model="searchQuery"
-                    :fetch-suggestions="querySearch"
-                    placeholder="搜索股票代碼或名稱"
-                    @select="handleSelect"
-                    :trigger-on-focus="false"
-                    clearable
+                  class="search-input"
+                  v-model="searchQuery"
+                  :fetch-suggestions="querySearch"
+                  placeholder="搜索股票代碼或名稱"
+                  @select="handleSelect"
+                  :trigger-on-focus="false"
+                  clearable
                 >
                   <template #prefix>
                     <el-icon><Search /></el-icon>
@@ -76,9 +97,12 @@
                     <div class="search-result-item">
                       <span class="symbol">{{ item.symbol }}</span>
                       <span class="name">{{ item.name }}</span>
-                      <span class="market-tag" :class="item.market === 'TW' ? 'tw-tag' : 'us-tag'">
-                  {{ item.market }}
-                </span>
+                      <span
+                        class="market-tag"
+                        :class="item.market === 'TW' ? 'tw-tag' : 'us-tag'"
+                      >
+                        {{ item.market }}
+                      </span>
                     </div>
                   </template>
                 </el-autocomplete>
@@ -87,12 +111,12 @@
           </template>
 
           <el-table
-              :data="filteredStocks"
-              v-loading="loading"
-              class="stock-table"
-              @row-click="viewStockDetail"
-              stripe
-              highlight-current-row
+            :data="filteredStocks"
+            v-loading="loading"
+            class="stock-table"
+            @row-click="viewStockDetail"
+            stripe
+            highlight-current-row
           >
             <el-table-column prop="symbol" label="代码" width="100">
               <template #default="scope">
@@ -104,39 +128,72 @@
               <template #default="scope">
                 <div class="name-cell">
                   <span class="name-text">{{ scope.row.name }}</span>
-                  <span v-if="scope.row.chinese_name" class="chinese-name">{{ scope.row.chinese_name }}</span>
+                  <span v-if="scope.row.chinese_name" class="chinese-name">{{
+                    scope.row.chinese_name
+                  }}</span>
                 </div>
               </template>
             </el-table-column>
 
             <el-table-column prop="industry" label="行业" width="120">
               <template #default="scope">
-                <el-tag size="small" effect="plain">{{ scope.row.industry }}</el-tag>
+                <el-tag size="small" effect="plain">{{
+                  scope.row.industry
+                }}</el-tag>
               </template>
             </el-table-column>
 
-            <el-table-column prop="price" label="当前价格" width="100" align="right">
+            <el-table-column
+              prop="price"
+              label="当前价格"
+              width="100"
+              align="right"
+            >
               <template #default="scope">
                 <span class="price">{{ formatPrice(scope.row.price) }}</span>
               </template>
             </el-table-column>
 
-            <el-table-column prop="change" label="涨跌" width="120" align="right">
+            <el-table-column
+              prop="change"
+              label="涨跌"
+              width="120"
+              align="right"
+            >
               <template #default="scope">
                 <div class="change-cell">
-            <span :class="['change', scope.row.change >= 0 ? 'positive' : 'negative']">
-              {{ scope.row.change >= 0 ? '+' : '' }}{{ formatPrice(scope.row.change) }}
-            </span>
-                  <el-icon v-if="scope.row.change > 0"><ArrowUp class="up-icon" /></el-icon>
-                  <el-icon v-else-if="scope.row.change < 0"><ArrowDown class="down-icon" /></el-icon>
+                  <span
+                    :class="[
+                      'change',
+                      scope.row.change >= 0 ? 'positive' : 'negative',
+                    ]"
+                  >
+                    {{ scope.row.change >= 0 ? "+" : ""
+                    }}{{ formatPrice(scope.row.change) }}
+                  </span>
+                  <el-icon v-if="scope.row.change > 0"
+                    ><ArrowUp class="up-icon"
+                  /></el-icon>
+                  <el-icon v-else-if="scope.row.change < 0"
+                    ><ArrowDown class="down-icon"
+                  /></el-icon>
                 </div>
               </template>
             </el-table-column>
 
-            <el-table-column prop="changePercent" label="涨跌幅" width="120" align="right">
+            <el-table-column
+              prop="changePercent"
+              label="涨跌幅"
+              width="120"
+              align="right"
+            >
               <template #default="scope">
-                <div class="percent-badge" :class="scope.row.change >= 0 ? 'positive-bg' : 'negative-bg'">
-                  {{ scope.row.change >= 0 ? '+' : '' }}{{ formatPercent(scope.row.change) }}%
+                <div
+                  class="percent-badge"
+                  :class="scope.row.change >= 0 ? 'positive-bg' : 'negative-bg'"
+                >
+                  {{ scope.row.change >= 0 ? "+" : ""
+                  }}{{ formatPercent(scope.row.change) }}%
                 </div>
               </template>
             </el-table-column>
@@ -144,10 +201,10 @@
             <el-table-column label="操作" width="80" fixed="right">
               <template #default="scope">
                 <el-button
-                    type="primary"
-                    size="small"
-                    @click.stop="viewStockDetail(scope.row)"
-                    class="view-button"
+                  type="primary"
+                  size="small"
+                  @click.stop="viewStockDetail(scope.row)"
+                  class="view-button"
                 >
                   查看
                 </el-button>
@@ -158,14 +215,14 @@
           <!-- 新增分页组件 -->
           <div class="pagination-container">
             <el-pagination
-                v-model:current-page="currentPage"
-                v-model:page-size="pageSize"
-                :page-sizes="[10, 20, 50, 100]"
-                layout="total, sizes, prev, pager, next, jumper"
-                :total="totalStocks"
-                @size-change="handleSizeChange"
-                @current-change="handleCurrentChange"
-                background
+              v-model:current-page="currentPage"
+              v-model:page-size="pageSize"
+              :page-sizes="[10, 20, 50, 100]"
+              layout="total, sizes, prev, pager, next, jumper"
+              :total="totalStocks"
+              @size-change="handleSizeChange"
+              @current-change="handleCurrentChange"
+              background
             />
           </div>
         </el-card>
@@ -201,7 +258,12 @@
 
           <div v-if="sentimentSummary" class="sentiment-summary">
             <div class="sentiment-gauge">
-              <el-progress type="dashboard" :percentage="sentimentScore" :color="sentimentColor" :stroke-width="12">
+              <el-progress
+                type="dashboard"
+                :percentage="sentimentScore"
+                :color="sentimentColor"
+                :stroke-width="12"
+              >
                 <template #default>
                   <div class="sentiment-status">
                     <div class="status-label">{{ sentimentLabel }}</div>
@@ -251,20 +313,27 @@
 
     <!-- 股票详情弹窗 -->
     <el-dialog
-        v-model="stockDetailVisible"
-        title="股票详情"
-        width="80%"
-        destroy-on-close
-        class="stock-detail-dialog"
+      v-model="stockDetailVisible"
+      title="股票详情"
+      width="80%"
+      destroy-on-close
+      class="stock-detail-dialog"
     >
       <div v-if="currentStock" class="stock-detail-content">
         <div class="stock-header">
           <h2>{{ currentStock.name }} ({{ currentStock.symbol }})</h2>
           <div class="stock-price">
             <span class="price">{{ formatPrice(currentStock.price) }}</span>
-            <span :class="['change', currentStock.change >= 0 ? 'positive' : 'negative']">
-              {{ currentStock.change >= 0 ? '+' : '' }}{{ formatPrice(currentStock.change) }}
-              ({{ currentStock.change >= 0 ? '+' : '' }}{{ formatPercent(currentStock.change) }}%)
+            <span
+              :class="[
+                'change',
+                currentStock.change >= 0 ? 'positive' : 'negative',
+              ]"
+            >
+              {{ currentStock.change >= 0 ? "+" : ""
+              }}{{ formatPrice(currentStock.change) }} ({{
+                currentStock.change >= 0 ? "+" : ""
+              }}{{ formatPercent(currentStock.change) }}%)
             </span>
           </div>
         </div>
@@ -276,7 +345,10 @@
             <div class="chart-section">
               <h3>K线走势图</h3>
               <div class="chart-container detail-chart">
-                <KLineChart v-if="currentStockChart" :data="currentStockChart" />
+                <KLineChart
+                  v-if="currentStockChart"
+                  :data="currentStockChart"
+                />
               </div>
             </div>
           </el-col>
@@ -284,7 +356,10 @@
             <div class="chart-section">
               <h3>价格预测</h3>
               <div class="chart-container detail-chart">
-                <PredictionChart v-if="predictionChart" :data="predictionChart" />
+                <PredictionChart
+                  v-if="predictionChart"
+                  :data="predictionChart"
+                />
               </div>
             </div>
           </el-col>
@@ -293,238 +368,306 @@
     </el-dialog>
 
     <el-alert
-        v-if="error"
-        :title="error"
-        type="error"
-        class="error-alert"
-        show-icon
-        closable
+      v-if="error"
+      :title="error"
+      type="error"
+      class="error-alert"
+      show-icon
+      closable
     />
   </div>
 </template>
 
 <script setup>
-import { ref, computed, onMounted, watch } from 'vue'
-import { useRouter } from 'vue-router'
-import { useStockStore } from '@/stores/stockStore'
-import { useSentimentStore } from '@/stores/sentimentStore'
-import { storeToRefs } from 'pinia'
-import { ElMessage } from 'element-plus'
-import KLineChart from '@/components/KLineChart.vue'
-import PredictionChart from '@/components/PredictionChart.vue'
+import { ref, computed, onMounted, watch } from "vue";
+import { useRouter } from "vue-router";
+import { useStockStore } from "@/stores/stockStore";
+import { useSentimentStore } from "@/stores/sentimentStore";
+import { storeToRefs } from "pinia";
+import { ElMessage } from "element-plus";
+import KLineChart from "@/components/KLineChart.vue";
+import PredictionChart from "@/components/PredictionChart.vue";
 import {
-  Refresh, TrendCharts, Coin, Search, ArrowUp, ArrowDown,
-  Histogram, DataLine, ChatLineRound, CaretTop, CaretBottom,
-  TopRight, Right, BottomRight, Loading
-} from '@element-plus/icons-vue'
+  Refresh,
+  TrendCharts,
+  Coin,
+  Search,
+  ArrowUp,
+  ArrowDown,
+  Histogram,
+  DataLine,
+  ChatLineRound,
+  CaretTop,
+  CaretBottom,
+  TopRight,
+  Right,
+  BottomRight,
+  Loading,
+} from "@element-plus/icons-vue";
+import axios from "axios";
 
 // Router
-const router = useRouter()
+const router = useRouter();
 
 // Stores
-const stockStore = useStockStore()
-const sentimentStore = useSentimentStore()
+const stockStore = useStockStore();
+const sentimentStore = useSentimentStore();
 
 // Store refs
-const { stocks, loading, error, currentStock, stockChart, predictionChart, filteredStocks, currentMarket } = storeToRefs(stockStore)
-const { sentimentSummary } = storeToRefs(sentimentStore)
+const {
+  stocks,
+  loading,
+  error,
+  currentStock,
+  stockChart,
+  predictionChart,
+  filteredStocks,
+  currentMarket,
+} = storeToRefs(stockStore);
+const { sentimentSummary } = storeToRefs(sentimentStore);
 
 // Local state
-const searchQuery = ref('')
-const stockDetailVisible = ref(false)
-const selectedStockChart = ref(null)
-const selectedMarket = ref('TW')
-const currentPage = ref(1)
-const pageSize = ref(10)
-const totalStocks = ref(0)
+const searchQuery = ref("");
+const stockDetailVisible = ref(false);
+const selectedStockChart = ref(null);
+const selectedMarket = ref("TW");
+const currentPage = ref(1);
+const pageSize = ref(10);
+const totalStocks = ref(0);
 const marketIndex = ref({
-  name: '加權指數',
+  name: "加權指數",
   price: 18902.35,
   change: 82.45,
-  changePercent: 0.44
-})
+  changePercent: 0.44,
+});
 
 // Computed
 const sentimentScore = computed(() => {
-  if (!sentimentSummary.value) return 50
+  if (!sentimentSummary.value) return 50;
 
-  const total = sentimentSummary.value.positive +
-      sentimentSummary.value.neutral +
-      sentimentSummary.value.negative
+  const total =
+    sentimentSummary.value.positive +
+    sentimentSummary.value.neutral +
+    sentimentSummary.value.negative;
 
-  if (total === 0) return 50
+  if (total === 0) return 50;
 
-  return Math.round((sentimentSummary.value.positive * 100 +
-      sentimentSummary.value.neutral * 50) / total)
-})
+  return Math.round(
+    (sentimentSummary.value.positive * 100 +
+      sentimentSummary.value.neutral * 50) /
+      total
+  );
+});
 
 const sentimentLabel = computed(() => {
-  const score = sentimentScore.value
-  if (score >= 70) return '强烈看涨'
-  if (score >= 60) return '看涨'
-  if (score >= 45) return '中性偏多'
-  if (score >= 40) return '中性'
-  if (score >= 30) return '中性偏空'
-  if (score >= 20) return '看跌'
-  return '强烈看跌'
-})
+  const score = sentimentScore.value;
+  if (score >= 70) return "强烈看涨";
+  if (score >= 60) return "看涨";
+  if (score >= 45) return "中性偏多";
+  if (score >= 40) return "中性";
+  if (score >= 30) return "中性偏空";
+  if (score >= 20) return "看跌";
+  return "强烈看跌";
+});
 
 const sentimentColor = computed(() => {
-  const score = sentimentScore.value
-  if (score >= 70) return '#67c23a'
-  if (score >= 60) return '#85ce61'
-  if (score >= 45) return '#a0cfff'
-  if (score >= 40) return '#909399'
-  if (score >= 30) return '#f89898'
-  if (score >= 20) return '#f56c6c'
-  return '#e24646'
-})
+  const score = sentimentScore.value;
+  if (score >= 70) return "#67c23a";
+  if (score >= 60) return "#85ce61";
+  if (score >= 45) return "#a0cfff";
+  if (score >= 40) return "#909399";
+  if (score >= 30) return "#f89898";
+  if (score >= 20) return "#f56c6c";
+  return "#e24646";
+});
 
 const currentStockChart = computed(() => {
-  return stockChart.value
-})
+  return stockChart.value;
+});
 
 // Methods
 const refreshDashboard = () => {
-  stockStore.fetchStocks(selectedMarket.value, currentPage.value, pageSize.value)
-  sentimentStore.fetchSentimentData()
-
-  // 更新市场指数数据
-  if (selectedMarket.value === 'TW') {
-    marketIndex.value = {
-      name: '加權指數',
-      price: 18902.35,
-      change: 82.45,
-      changePercent: 0.44
-    }
-  } else {
-    marketIndex.value = {
-      name: 'S&P 500',
-      price: 4802.35,
-      change: 12.45,
-      changePercent: 0.26
-    }
-  }
+  stockStore.fetchStocks(
+    selectedMarket.value,
+    currentPage.value,
+    pageSize.value
+  );
+  sentimentStore.fetchSentimentData();
+  fetchMarketIndex(selectedMarket.value); // 使用 API 獲取最新指數
 
   ElMessage({
-    message: '数据已刷新',
-    type: 'success'
-  })
-}
+    message: "数据已刷新",
+    type: "success",
+  });
+};
 
 const formatPrice = (price) => {
-  if (price === undefined || price === null) return '-'
-  return Number(price).toFixed(2)
-}
+  if (price === undefined || price === null) return "-";
+  return Number(price).toFixed(2);
+};
 
 const formatPercent = (change) => {
-  if (change === undefined || change === null) return '-'
-  return Math.abs(Number(change)).toFixed(2)
-}
+  if (change === undefined || change === null) return "-";
+  return Math.abs(Number(change)).toFixed(2);
+};
 
 const viewStockDetail = (row) => {
   // 通过路由导航到分析页
-  const encodedSymbol = encodeURIComponent(row.symbol)
+  const encodedSymbol = encodeURIComponent(row.symbol);
   router.push({
-    name: 'CompanyAnalysis',
-    params: { symbol: encodedSymbol }
-  })
-}
+    name: "CompanyAnalysis",
+    params: { symbol: encodedSymbol },
+  });
+};
 
 const switchMarket = (market) => {
   // 切换市场时重置页码
-  currentPage.value = 1
-  stockStore.switchMarket(market, pageSize.value)
+  currentPage.value = 1;
+  stockStore.switchMarket(market, pageSize.value);
+  fetchMarketIndex(market); // 使用 API 獲取新市場的指數
+};
 
-  // 更新市场指数数据
-  if (market === 'TW') {
-    marketIndex.value = {
-      name: '加權指數',
-      price: 18902.35,
-      change: 82.45,
-      changePercent: 0.44
+// 定義獲取市場指數的函數
+const fetchMarketIndex = async (market) => {
+  try {
+    const response = await axios.get(
+      `http://localhost:5001/api/market-index/${market}`
+    );
+    if (response.data) {
+      marketIndex.value = response.data;
     }
-  } else {
-    marketIndex.value = {
-      name: 'S&P 500',
-      price: 4802.35,
-      change: 12.45,
-      changePercent: 0.26
+  } catch (error) {
+    console.error("獲取市場指數失敗:", error);
+    // 使用默認值
+    if (market === "TW") {
+      marketIndex.value = {
+        name: "加權指數",
+        price: 18902.35,
+        change: 82.45,
+        changePercent: 0.44,
+      };
+    } else {
+      marketIndex.value = {
+        name: "S&P 500",
+        price: 4802.35,
+        change: 12.45,
+        changePercent: 0.26,
+      };
     }
   }
-}
-
+};
 
 // 处理页码变化
 const handleCurrentChange = (newPage) => {
-  currentPage.value = newPage
-  stockStore.fetchStocks(selectedMarket.value, newPage, pageSize.value)
-}
-
+  currentPage.value = newPage;
+  stockStore.fetchStocks(selectedMarket.value, newPage, pageSize.value);
+};
 
 // 处理每页条数变化
 const handleSizeChange = (newSize) => {
-  pageSize.value = newSize
-  stockStore.fetchStocks(selectedMarket.value, currentPage.value, newSize)
-}
+  pageSize.value = newSize;
+  stockStore.fetchStocks(selectedMarket.value, currentPage.value, newSize);
+};
 
 // 股票搜索
 const querySearch = async (queryString, cb) => {
   if (queryString.length < 1) {
-    cb([])
-    return
+    cb([]);
+    return;
   }
 
   try {
-    const results = await stockStore.searchStocks(queryString)
-    cb(results)
+    const results = await stockStore.searchStocks(queryString);
+    cb(results);
   } catch (error) {
-    console.error('搜索失敗:', error)
-    cb([])
+    console.error("搜索失敗:", error);
+    cb([]);
   }
-}
+};
 
 const handleSelect = (item) => {
   if (item.market !== selectedMarket.value) {
-    selectedMarket.value = item.market
-    stockStore.switchMarket(item.market)
+    selectedMarket.value = item.market;
+    stockStore.switchMarket(item.market);
   }
 
   // 查看股票詳情
-  viewStockDetail(item)
+  viewStockDetail(item);
 
   // 清空搜索框
-  searchQuery.value = ''
-}
+  searchQuery.value = "";
+};
 
-watch(() => selectedMarket.value, (newMarket) => {
-  stockStore.switchMarket(newMarket)
-})
+watch(
+  () => selectedMarket.value,
+  (newMarket) => {
+    stockStore.switchMarket(newMarket);
+  }
+);
 
 onMounted(() => {
   // 初始化股票数据
-  stockStore.initializeData(pageSize.value)
-  sentimentStore.fetchSentimentData()
+  stockStore.initializeData(pageSize.value);
+  sentimentStore.fetchSentimentData();
 
-  // 监听分页数据
-  watch(() => stockStore.pagination, (newPagination) => {
-    if (newPagination) {
-      totalStocks.value = newPagination.total
-    }
-  }, { deep: true })
+  // 獲取市場指數 (從後端 API)
+  fetchMarketIndex(selectedMarket.value);
 
-  // 模拟数据 - 实际应用中应该从API获取
-  setTimeout(() => {
-    if (stocks.value.length > 0) {
-      const randomIndex = Math.floor(Math.random() * Math.min(5, stocks.value.length))
-      const randomStock = stocks.value[randomIndex]
-      if (randomStock) {
-        stockStore.fetchStockDetail(randomStock.symbol)
-        selectedStockChart.value = stockStore.generateMockChartData()
+  // 監聽分页數據
+  watch(
+    () => stockStore.pagination,
+    (newPagination) => {
+      if (newPagination) {
+        totalStocks.value = newPagination.total;
       }
+    },
+    { deep: true }
+  );
+
+  // 修改熱門股票趨勢的數據來源
+  const loadTrendingStockChart = async () => {
+    try {
+      if (stocks.value && stocks.value.length > 0) {
+        // 選取第一個股票作為熱門股票
+        const trendingStock = stocks.value[0];
+        if (trendingStock) {
+          // 獲取真實股價數據
+          await stockStore.fetchStockDetail(trendingStock.symbol);
+          selectedStockChart.value = stockStore.stockChart;
+        }
+      }
+    } catch (error) {
+      console.error("載入熱門股票趨勢失敗:", error);
+      // 使用模擬數據作為備用方案
+      selectedStockChart.value = stockStore.generateMockChartData();
     }
-  }, 1000)
-})
+  };
+
+  // 讓股票數據載入後再載入熱門股票趨勢
+  watch(
+    () => stocks.value.length,
+    (newLength) => {
+      if (newLength > 0) {
+        loadTrendingStockChart();
+      }
+    },
+    { immediate: true }
+  );
+});
+
+// 移除原本使用模擬數據的 setTimeout 部分
+// setTimeout(() => {
+//   if (stocks.value.length > 0) {
+//     const randomIndex = Math.floor(
+//       Math.random() * Math.min(5, stocks.value.length)
+//     );
+//     const randomStock = stocks.value[randomIndex];
+//     if (randomStock) {
+//       stockStore.fetchStockDetail(randomStock.symbol);
+//       selectedStockChart.value = stockStore.generateMockChartData();
+//     }
+//   }
+// }, 1000);
 </script>
 
 <style scoped>
@@ -640,7 +783,6 @@ onMounted(() => {
   color: #f56c6c;
 }
 
-
 /* 在 Dashboard.vue 的 <style scoped> 部分添加 */
 .pagination-container {
   margin-top: 20px;
@@ -690,11 +832,11 @@ onMounted(() => {
 }
 
 .tw-tag {
-  background-color: #409EFF;
+  background-color: #409eff;
 }
 
 .us-tag {
-  background-color: #67C23A;
+  background-color: #67c23a;
 }
 
 .stock-table {
@@ -702,7 +844,7 @@ onMounted(() => {
 }
 
 .symbol-text {
-  font-family: 'Roboto Mono', monospace;
+  font-family: "Roboto Mono", monospace;
   font-weight: 600;
 }
 
@@ -722,7 +864,7 @@ onMounted(() => {
 
 .price {
   font-weight: 600;
-  font-family: 'Roboto Mono', monospace;
+  font-family: "Roboto Mono", monospace;
 }
 
 .change-cell {
@@ -734,7 +876,7 @@ onMounted(() => {
 
 .change {
   font-weight: 600;
-  font-family: 'Roboto Mono', monospace;
+  font-family: "Roboto Mono", monospace;
 }
 
 .positive {
