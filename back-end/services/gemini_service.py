@@ -12,17 +12,7 @@ class GeminiService:
         
         try:
             genai.configure(api_key=api_key)
-            # 改回使用 gemini-pro
-            self.model = genai.GenerativeModel('gemini-1.5-pro')
-            
-            # 設定生成參數
-            self.generation_config = {
-                'temperature': 0.7,
-                'top_p': 0.9,
-                'top_k': 40,
-                'max_output_tokens': 2048,
-            }
-            
+            self.model = genai.GenerativeModel('gemini-2.0-flash')
         except Exception as e:
             raise Exception(f"Gemini 初始化失敗: {str(e)}")
 
@@ -32,7 +22,7 @@ class GeminiService:
             news_summary = "\n".join([
                 f"- {news.get('date', 'N/A')}: {news.get('text', '')[:100]}... "
                 f"(情感分數: {news.get('impact_pct', 0)}%)"
-                for news in news_list[:5]
+                for news in news_list[:5]  # 只取前5則新聞
             ])
 
             prompt = f"""
@@ -48,26 +38,27 @@ class GeminiService:
             }}
             """
 
-            print(f"發送提示詞到 Gemini 1.5...")
+            # 輸出提示詞以便除錯
+            print(f"Prompt: {prompt}")
 
-            # 使用設定的參數調用 API
-            response = self.model.generate_content(
-                prompt,
-                generation_config=self.generation_config
-            )
+            # 調用 Gemini API
+            response = self.model.generate_content(prompt)
             
             if not response or not response.text:
                 raise Exception("Gemini API 回應為空")
 
-            print(f"收到 Gemini 回應: {response.text}")
+            # 輸出原始回應以便除錯
+            print(f"Raw response: {response.text}")
 
             try:
+                # 清理回應文本，移除可能的 markdown 標記
                 cleaned_text = response.text.strip('`').strip()
                 if cleaned_text.startswith('json'):
                     cleaned_text = cleaned_text[4:].strip()
                 
                 result = json.loads(cleaned_text)
                 
+                # 驗證回應格式
                 required_fields = ['sentiment', 'summary', 'suggestions']
                 if not all(field in result for field in required_fields):
                     raise ValueError("回應缺少必要欄位")
