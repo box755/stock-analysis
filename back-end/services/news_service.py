@@ -4,7 +4,8 @@ import os
 
 class NewsService:
     def __init__(self):
-        self.data_file = Path(__file__).parent.parent /'labeled_news_lr.json'
+        # 修改檔案路徑為新的 combined_news.json
+        self.data_file = Path(__file__).parent.parent / 'combined_news.json'
         # 顯示當前工作目錄和檔案路徑，用於除錯
         print(f"當前工作目錄: {os.getcwd()}")
         print(f"JSON 檔案完整路徑: {self.data_file.absolute()}")
@@ -18,6 +19,18 @@ class NewsService:
                 try:
                     data = json.load(f)
                     print(f"成功載入 {len(data)} 筆新聞資料")
+                    
+                    # 轉換欄位名稱：如果有新的欄位結構
+                    # 假設 combined_news.json 有 title 和 content 欄位
+                    for item in data:
+                        # 如果有 content 欄位且沒有 text 欄位，則將 content 複製到 text
+                        if 'content' in item and 'text' not in item:
+                            item['text'] = item.get('content', '')
+                            
+                        # 確保 impact_pct 欄位存在
+                        if 'impact_pct' not in item:
+                            item['impact_pct'] = 50  # 設定預設值
+                    
                     return data
                 except json.JSONDecodeError as e:
                     raise Exception(f"JSON 格式錯誤: {str(e)}")

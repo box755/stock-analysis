@@ -94,8 +94,11 @@
                     情感分數: {{ news.impact_pct }}%
                   </el-tag>
                 </div>
+                <!-- 使用 title 或 text 顯示標題 -->
+                <div class="news-title">{{ news.title || truncateText(news.text, 50) }}</div>
+                <!-- 使用 content 或 text 顯示內容 -->
                 <div class="news-preview">
-                  {{ truncateText(news.text, 100) }}
+                  {{ truncateText(news.content || news.text, 100) }}
                 </div>
               </el-card>
             </div>
@@ -107,11 +110,12 @@
     <!-- 新聞詳情對話框 -->
     <el-dialog
       v-model="dialogVisible"
-      :title="formatDate(selectedNews?.date)"
+      :title="selectedNews?.title || formatDate(selectedNews?.date)"
       width="50%"
     >
       <div class="news-detail">
-        <p class="news-content">{{ selectedNews?.text }}</p>
+        <!-- 使用 content 或 text 顯示全文 -->
+        <p class="news-content">{{ selectedNews?.content || selectedNews?.text }}</p>
         <div class="news-analysis">
           <h4>
             情感分析分數：
@@ -171,65 +175,53 @@ const formatStockData = (data) => {
 const loadData = async () => {
   loading.value = true;
   try {
-    // 確保 symbol 存在
-    if (!symbol.value) {
-      throw new Error("未指定公司代碼");
-    }
-
     const encodedSymbol = encodeURIComponent(symbol.value);
-
-    // 使用 Promise.all 並加入錯誤處理
-    const [stockResp, newsResp] = await Promise.all([
-      axios
-          .get(`http://localhost:5001/api/stocks/${encodedSymbol}`)
-          .catch((error) => {
-            console.error("載入股價數據失敗:", error);
-            return { data: [] };
-          }),
-      axios
-          .get(`http://localhost:5001/api/news/${encodedSymbol}`)
-          .catch((error) => {
-            console.error("載入新聞數據失敗:", error);
-            // 如果是404，不顯示錯誤，只返回空數組
-            if (error.response && error.response.status === 404) {
-              return { data: [] };
-            }
-            return { data: [] };
-          }),
-    ]);
-
-    // 更新數據
-    if (stockResp.data) {
-      stockData.value = stockResp.data;
+    
+    // 股票數據獲取
+    const stockResp = await axios.get(`http://localhost:5001/api/stocks/${encodedSymbol}`)
+      .catch(error => {
+        console.error('載入股價數據失敗:', error);
+        return { data: [] };
+      });
+    
+    // 新聞數據獲取
+    const newsResp = await axios.get(`http://localhost:5001/api/news/${encodedSymbol}`)
+      .catch(error => {
+        console.error('載入新聞數據失敗:', error);
+        return { data: [] };
+      });
+    
+    // 處理股票數據
+    if (stockResp.data && stockResp.data.length > 0) {
+      stockData.value = stockResp.data.map(item => ({
+        date: item.date,
+        open: item.open,
+        high: item.high,
+        low: item.low,
+        close: item.close,
+        volume: item.volume
+      }));
     }
-
-    // 查詢股票名稱 - 如果已經有映射就直接使用
-    let stockName = symbol.value;
-    try {
-      const mappingResp = await axios.get('http://localhost:5001/api/company-mappings');
-      if (mappingResp.data && mappingResp.data[symbol.value]) {
-        stockName = mappingResp.data[symbol.value];
-      }
-    } catch (error) {
-      console.error("載入公司映射失敗:", error);
-    }
-
-    if (newsResp.data) {
+    
+    // 處理新聞數據
+    if (newsResp.data && newsResp.data.length > 0) {
       newsList.value = newsResp.data;
-      // 如果有新聞，使用新聞中的公司名
-      if (newsResp.data.length > 0 && newsResp.data[0].company) {
-        stockName = newsResp.data[0].company;
+      
+      // 更新公司名稱
+      if (newsResp.data[0]?.company) {
+        companyInfo.value = {
+          symbol: symbol.value,
+          name: newsResp.data[0].company
+        };
       }
+    } else {
+      // 如果沒有新聞數據，設置一個空數組並給出提示
+      newsList.value = [];
+      ElMessage.warning('未找到相關新聞數據');
     }
-
-    // 更新公司資訊
-    companyInfo.value = {
-      symbol: symbol.value,
-      name: stockName
-    };
   } catch (error) {
-    console.error("數據載入失敗:", error);
-    ElMessage.error("無法載入公司資料，請稍後再試");
+    console.error('載入資料失敗:', error);
+    ElMessage.error('載入資料失敗');
   } finally {
     loading.value = false;
   }
@@ -268,11 +260,19 @@ const truncateText = (text, length) => {
 const generateAIAnalysis = async () => {
   generatingAnalysis.value = true;
   try {
+    // 準備要傳送的新聞資料
+    const newsForAnalysis = newsList.value.map(news => ({
+      title: news.title || "",
+      content: news.content || news.text || "",
+      impact_pct: news.impact_pct,
+      date: news.date
+    }));
+
     const response = await axios.post(
       "http://localhost:5001/api/analyze/sentiment",
       {
         company: symbol.value,
-        news: newsList.value,
+        news: newsForAnalysis,
       }
     );
 
@@ -388,8 +388,9 @@ onMounted(() => {
 }
 
 .news-title {
-  cursor: pointer;
-  color: #409eff;
+  font-weight: bold;
+  margin-bottom: 8px;
+  color: #303133;
 }
 
 .news-title:hover {

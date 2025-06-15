@@ -16,12 +16,14 @@ class GeminiService:
         except Exception as e:
             raise Exception(f"Gemini 初始化失敗: {str(e)}")
 
+
     def analyze_sentiment(self, company, news_list):
         try:
-            # 準備新聞摘要
+            # 準備新聞摘要，支援新的資料結構
             news_summary = "\n".join([
-                f"- {news.get('date', 'N/A')}: {news.get('text', '')[:100]}... "
-                f"(情感分數: {news.get('impact_pct', 0)}%)"
+                f"- {news.get('date', 'N/A')}: {news.get('title', '')} "
+                f"(情感分數: {news.get('impact_pct', 0)}%)\n"
+                f"  內容: {(news.get('content') or news.get('text', ''))[:100]}..."
                 for news in news_list[:5]  # 只取前5則新聞
             ])
 

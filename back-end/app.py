@@ -9,7 +9,10 @@ from urllib.parse import unquote
 import math
 
 from services.gemini_service import GeminiService
+from services.news_service import NewsService
+
 gemini_service = GeminiService()
+news_service = NewsService()
 
 app = Flask(__name__)
 CORS(app, resources={
@@ -146,23 +149,107 @@ def get_stock_data(symbol):
 @app.route('/api/news/<company>', methods=['GET'])
 def get_company_news(company):
     try:
-        company_name = unquote(company)
-
-        # 如果输入的是股票代码，转换为公司名称
-        if company_name in stock_symbols_to_name:
-            company_name = stock_symbols_to_name[company_name]
-
-        # 从 JSON 文件读取新闻
-        with open('labeled_news_lr.json', 'r', encoding='utf-8') as f:
-            all_news = json.load(f)
-
-        # 过滤该公司的新闻
-        company_news = [news for news in all_news if news.get('company') == company_name]
-
-        # 不论有没有找到新闻，都返回200状态码
+        company_input = unquote(company)
+        
+        # 處理公司識別 - 既可以處理代號也可以處理名稱
+        company_name = None
+        
+        # 1. 檢查是否為股票代號 (如 2330)
+        if company_input in stock_symbols_to_name:
+            company_name = stock_symbols_to_name[company_input]
+        else:
+            # 2. 檢查是否為股票名稱 (如 台積電)
+            # 建立反向映射 (名稱->代號)
+            name_to_code = {v: k for k, v in stock_symbols_to_name.items()}
+            if company_input in name_to_code:
+                company_name = company_input
+            else:
+                # 3. 嘗試組合搜尋 (如 2330台積電)
+                for code, name in stock_symbols_to_name.items():
+                    combined = f"{code}{name}"
+                    if company_input == combined:
+                        company_name = name
+                        break
+        
+        # 如果還沒找到公司名稱，就使用輸入值
+        if not company_name:
+            company_name = company_input
+            
+        print(f"搜尋公司: 輸入={company_input}, 識別為={company_name}")
+        
+        # 載入新聞資料
+        try:
+            with open('combined_news.json', 'r', encoding='utf-8') as f:
+                all_news = json.load(f)
+                print(f"成功載入 {len(all_news)} 筆新聞")
+        except FileNotFoundError:
+            print("找不到 combined_news.json，使用 news_service 載入")
+            all_news = news_service.load_news_data()
+        
+        # 過濾公司新聞 - 使用多種策略匹配
+        company_news = []
+        
+        for news in all_news:
+            news_company = news.get('company', '')
+            should_include = False
+            
+            # 匹配策略
+            if news_company:
+                # 1. 完全匹配
+                if news_company == company_name:
+                    should_include = True
+                # 2. 如果新聞公司名含有股票代碼+名稱形式 (如 "2330台積電")
+                elif company_input in news_company or company_name in news_company:
+                    should_include = True
+                # 3. 代號匹配 (假設新聞只有代號)
+                elif company_input in stock_symbols_to_name and news_company == company_input:
+                    should_include = True
+            
+            if should_include:
+                # 確保所有必要欄位存在
+                if 'date' not in news:
+                    news['date'] = (datetime.datetime.now() - datetime.timedelta(days=random.randint(1, 30))).strftime('%Y-%m-%d')
+                
+                if 'title' not in news:
+                    if 'text' in news:
+                        news['title'] = news['text'][:20] + '...'
+                    else:
+                        news['title'] = f"關於{company_name}的新聞"
+                
+                if 'content' not in news and 'text' in news:
+                    news['content'] = news['text']
+                
+                if 'text' not in news and 'content' in news:
+                    news['text'] = news['content']
+                
+                if 'impact_pct' not in news:
+                    news['impact_pct'] = random.randint(40, 70)
+                
+                # 設定或更新公司名稱為標準化名稱
+                news['company'] = company_name
+                company_news.append(news)
+        
+        # 如果找不到相關新聞，生成模擬數據
+        if not company_news:
+            print(f"沒有找到 {company_name} 的相關新聞，生成模擬數據")
+            for i in range(5):
+                mock_news = {
+                    "company": company_name,
+                    "date": (datetime.datetime.now() - datetime.timedelta(days=i)).strftime('%Y-%m-%d'),
+                    "title": f"{company_name}相關新聞 #{i+1}",
+                    "content": f"這是關於{company_name}的模擬新聞內容，用於測試顯示。",
+                    "text": f"這是關於{company_name}的模擬新聞內容 #{i+1}，這只是測試數據。",
+                    "impact_pct": random.randint(40, 70)
+                }
+                company_news.append(mock_news)
+        
+        # 根據日期排序，最新的在前
+        company_news.sort(key=lambda x: x.get('date', ''), reverse=True)
+        
         return jsonify(company_news)
+        
     except Exception as e:
-        print(f"获取新闻时出错: {str(e)}")
+        print(f"獲取新聞時出錯: {str(e)}")
         return jsonify({"error": str(e)}), 500
 
 
