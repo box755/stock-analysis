@@ -624,36 +624,31 @@ onMounted(() => {
     { deep: true }
   );
 
-  // 修改熱門股票趨勢的數據來源
-  const loadTrendingStockChart = async () => {
-    try {
-      if (stocks.value && stocks.value.length > 0) {
-        // 選取第一個股票作為熱門股票
-        const trendingStock = stocks.value[0];
-        if (trendingStock) {
-          // 獲取真實股價數據
-          await stockStore.fetchStockDetail(trendingStock.symbol);
-          selectedStockChart.value = stockStore.stockChart;
-        }
-      }
-    } catch (error) {
-      console.error("載入熱門股票趨勢失敗:", error);
-      // 使用模擬數據作為備用方案
-      selectedStockChart.value = stockStore.generateMockChartData();
-    }
-  };
+  // 載入台股綜合指數 K 線圖
+  loadIndexChart();
 
-  // 讓股票數據載入後再載入熱門股票趨勢
+  // 當市場變更時更新 K 線圖
   watch(
-    () => stocks.value.length,
-    (newLength) => {
-      if (newLength > 0) {
-        loadTrendingStockChart();
-      }
-    },
-    { immediate: true }
+    () => selectedMarket.value,
+    (newMarket) => {
+      loadIndexChart();
+    }
   );
 });
+
+// 新增載入指數 K 線圖的函數
+const loadIndexChart = async () => {
+  try {
+    // 根據所選市場載入對應的指數
+    const indexSymbol = selectedMarket.value === "TW" ? "^TWII" : "^GSPC";
+    // 獲取指數的 K 線圖數據
+    await stockStore.fetchStockDetail(indexSymbol);
+    // 將獲取的 K 線圖數據設置為當前選中的圖表數據
+    selectedStockChart.value = stockStore.stockChart;
+  } catch (error) {
+    console.error("載入指數 K 線圖失敗:", error);
+  }
+};
 
 // 移除原本使用模擬數據的 setTimeout 部分
 // setTimeout(() => {
