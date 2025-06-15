@@ -10,15 +10,25 @@ export const useStockStore = defineStore('stock', () => {
     const predictionChart = ref(null)
     const loading = ref(false)
     const error = ref(null)
+    const symbolToNameMap = ref({}) // 股票代码到名称的映射
+    const currentMarket = ref('TW') // 当前市场 'TW' 或 'US'
+    const pagination = ref(null) // 新增分页信息
 
-    // 模拟股票数据
-    const mockStocks = [
-        { symbol: '2317', name: '鴻海', price: 108.5, change: 2.5, changePercent: 2.36 },
-        { symbol: '2330', name: '台積電', price: 890, change: -5, changePercent: -0.56 },
-        { symbol: '2454', name: '聯發科', price: 1250, change: 15, changePercent: 1.22 },
-        { symbol: '2412', name: '中華電', price: 125.5, change: 0.5, changePercent: 0.40 },
-        { symbol: '2882', name: '國泰金', price: 65.8, change: -1.2, changePercent: -1.79 }
-    ]
+    // Computed
+    const filteredStocks = computed(() => {
+        return stocks.value
+    })
+
+    // 获取股票代码到名称的映射
+    const fetchSymbolToNameMap = async () => {
+        try {
+            const response = await axios.get('http://localhost:5001/api/company-mappings')
+            symbolToNameMap.value = response.data
+            console.log('已载入股票代码映射', Object.keys(symbolToNameMap.value).length)
+        } catch (err) {
+            console.error('获取股票代码映射失败:', err)
+        }
+    }
 
     // Getters
     const getStockBySymbol = computed(() => {
@@ -26,61 +36,108 @@ export const useStockStore = defineStore('stock', () => {
     })
 
     // Actions
-    const fetchStocks = async () => {
+    const fetchStocks = async (market = currentMarket.value, page = 1, pageSize = 10) => {
         loading.value = true
         error.value = null
+        currentMarket.value = market
 
         try {
-            // 这里应该调用后端API
-            // const response = await axios.get('/api/stocks')
-            // stocks.value = response.data
+            const response = await axios.get(
+                `http://localhost:5001/api/companies?market=${market}&page=${page}&page_size=${pageSize}`
+            )
 
-            // 现在使用模拟数据
-            await new Promise(resolve => setTimeout(resolve, 500)) // 模拟网络延迟
-            stocks.value = mockStocks
+            if (response.data && response.data.data) {
+                // 更新股票列表
+                stocks.value = response.data.data.map((stock) => ({
+                    ...stock,
+                    market,
+                    price: Number(stock.price) || 0,
+                    change: Number(stock.change) || 0,
+                    changePercent: stock.changePercent !== undefined ?
+                        Number(stock.changePercent) :
+                        (stock.price ? (stock.change / stock.price * 100) : 0)
+                }))
+
+                // 更新分页信息
+                pagination.value = response.data.pagination
+            }
         } catch (err) {
+            console.error('获取股票数据失败:', err)
             error.value = '获取股票数据失败'
-            console.error('Error fetching stocks:', err)
         } finally {
             loading.value = false
         }
     }
 
-    const fetchStockDetail = async (symbol) => {
+    // 搜索股票
+    const searchStocks = async (query) => {
+        if (!query) return []
+
+        try {
+            const response = await axios.get(`http://localhost:5001/api/search-stocks?q=${encodeURIComponent(query)}`)
+            return response.data
+        } catch (err) {
+            console.error('搜索股票失败:', err)
+            return []
+        }
+    }
+
+    const fetchStockDetail = async (symbol, market = 'TW') => {
         loading.value = true
         error.value = null
 
         try {
-            // 这里应该调用后端API获取详细信息
-            // const response = await axios.get(`/api/stocks/${symbol}`)
-            // currentStock.value = response.data
+            // 尝试从API获取股票详情
+            const response = await axios.get(`http://localhost:5001/api/stocks/${encodeURIComponent(symbol)}`)
 
-            // 模拟数据
-            await new Promise(resolve => setTimeout(resolve, 500))
-            const stock = mockStocks.find(s => s.symbol === symbol)
-            if (stock) {
+            // 找到基本信息
+            const stock = stocks.value.find(s => s.symbol === symbol) ||
+                { symbol, name: symbolToNameMap.value[symbol] || symbol, price: 0, change: 0, changePercent: 0, market }
+
+            if (response.data) {
+                // 使用API的数据生成K线图数据
+                stockChart.value = response.data
+
+                // 更新当前股票详情
                 currentStock.value = {
                     ...stock,
-                    description: `${stock.name} (${stock.symbol}) 是台湾重要的上市公司`,
+                    description: `${stock.name} (${stock.symbol}) 是一家重要的上市公司`,
                     marketCap: '1.2兆',
                     pe: 15.6,
                     dividend: 5.2
                 }
 
-                // 生成模拟K线图数据
-                stockChart.value = generateMockChartData()
-                // 生成模拟预测图数据
+                // 生成预测数据
                 predictionChart.value = generateMockPredictionData()
+            } else {
+                throw new Error('返回数据格式不正确')
             }
         } catch (err) {
+            console.error('获取股票详情失败:', err)
             error.value = '获取股票详情失败'
-            console.error('Error fetching stock detail:', err)
+
+            // 使用模拟数据
+            const stock = stocks.value.find(s => s.symbol === symbol) ||
+                { symbol, name: symbolToNameMap.value[symbol] || symbol, price: 0, change: 0, market }
+
+            currentStock.value = {
+                ...stock,
+                description: `${stock.name} (${stock.symbol}) 是一家重要的上市公司`,
+                marketCap: '1.2兆',
+                pe: 15.6,
+                dividend: 5.2
+            }
+
+            // 生成模拟K线图数据
+            stockChart.value = generateMockChartData()
+            // 生成模拟预测图数据
+            predictionChart.value = generateMockPredictionData()
         } finally {
             loading.value = false
         }
     }
 
-    // 生成模拟K线图数据
+    // 生成模拟K线图数据 - 提供给外部使用
     const generateMockChartData = () => {
         const data = []
         let price = 100
@@ -95,10 +152,10 @@ export const useStockStore = defineStore('stock', () => {
 
             data.push({
                 date: new Date(Date.now() - (29 - i) * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-                open: open.toFixed(2),
-                high: high.toFixed(2),
-                low: low.toFixed(2),
-                close: close.toFixed(2),
+                open: parseFloat(open.toFixed(2)),
+                high: parseFloat(high.toFixed(2)),
+                low: parseFloat(low.toFixed(2)),
+                close: parseFloat(close.toFixed(2)),
                 volume: Math.floor(Math.random() * 1000000)
             })
         }
@@ -133,6 +190,20 @@ export const useStockStore = defineStore('stock', () => {
         return { labels, actual, predicted }
     }
 
+    // 初始化数据
+    const initializeData = async (pageSize = 10) => {
+        await fetchSymbolToNameMap()
+        await fetchStocks(currentMarket.value, 1, pageSize)
+    }
+
+    // 切换市场
+    const switchMarket = (market, pageSize = 10) => {
+        if (market !== currentMarket.value) {
+            currentMarket.value = market
+            fetchStocks(market, 1, pageSize) // 重置到第一页
+        }
+    }
+
     return {
         // State
         stocks,
@@ -141,12 +212,21 @@ export const useStockStore = defineStore('stock', () => {
         predictionChart,
         loading,
         error,
+        symbolToNameMap,
+        currentMarket,
+        filteredStocks,
+        pagination, // 导出分页信息
 
         // Getters
         getStockBySymbol,
 
         // Actions
         fetchStocks,
-        fetchStockDetail
+        fetchStockDetail,
+        searchStocks,
+        generateMockChartData,
+        generateMockPredictionData,
+        initializeData,
+        switchMarket
     }
 })

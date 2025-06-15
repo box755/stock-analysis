@@ -1,34 +1,268 @@
+import pandas as pd
+import json
+import datetime
+import random
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 import os
-import json
-import google.generativeai as genai
-from dotenv import load_dotenv
-from datetime import datetime, timedelta
-import random
 from urllib.parse import unquote
+import math
+
 from services.gemini_service import GeminiService
+gemini_service = GeminiService()
 
 app = Flask(__name__)
-CORS(app)
+CORS(app, resources={
+    r"/*": {
+        "origins": ["http://localhost:3000", "http://127.0.0.1:3000"],
+        "methods": ["GET", "POST", "OPTIONS"],
+        "allow_headers": ["Content-Type", "Authorization"]
+    }
+})
+# 全局变量，存储股票代码到名称的映射
+stock_symbols_to_name = {}
 
-# 載入環境變數
-load_dotenv()
-api_key = os.getenv('GEMINI_API_KEY')
 
-if not api_key:
-    print("警告：未設定 GEMINI_API_KEY")
-    api_key = "AIzaSyCJWcJcF3cJKWW2onaVFph5Fz5UfYfV4Oc"  # 替換為您的 API key
+# 载入台湾股票分类数据
+def load_tw_stock_categories():
+    try:
+        with open('tw_stock_categories.json', 'r', encoding='utf-8') as f:
+            data = json.load(f)
+        return data
+    except Exception as e:
+        print(f"载入台湾股票分类数据失败: {str(e)}")
+        return {"categories": []}
 
-# 配置 Gemini
-try:
-    genai.configure(api_key=api_key)
-    model = genai.GenerativeModel('gemini-pro')
-except Exception as e:
-    print(f"Gemini 設定錯誤: {str(e)}")
 
-# 初始化服務
-gemini_service = GeminiService()
+# 载入台湾上市股票数据
+def load_twse_listed_stocks():
+    try:
+        # 读取CSV文件
+        df = pd.read_csv('twse_listed_stocks.csv')
+        # 转换为字典列表
+        stocks = df.to_dict('records')
+        # 建立映射
+        for stock in stocks:
+            stock_symbols_to_name[str(stock['有價證券代號'])] = stock['有價證券名稱']
+        return stocks
+    except Exception as e:
+        print(f"载入台湾上市股票数据失败: {str(e)}")
+        return []
+
+
+# 载入美国股票分类数据
+def load_us_stock_categories():
+    try:
+        with open('us_stock_categories.json', 'r', encoding='utf-8') as f:
+            data = json.load(f)
+        # 建立美股代码到公司名称的映射
+        for stock in data:
+            stock_symbols_to_name[stock['ticker']] = stock['name']
+        return data
+    except Exception as e:
+        print(f"载入美国股票分类数据失败: {str(e)}")
+        return []
+
+
+# 载入美国股票列表
+def load_us_stock_list():
+    try:
+        # 读取CSV文件
+        df = pd.read_csv('us_stock_list.csv')
+        # 转换为字典列表
+        stocks = df.to_dict('records')
+        # 建立映射
+        for stock in stocks:
+            stock_symbols_to_name[stock['Symbol']] = stock['English name']
+        return stocks
+    except Exception as e:
+        print(f"载入美国股票列表失败: {str(e)}")
+        return []
+
+
+# 初始化函数，取代 before_first_request
+def initialize_data():
+    with app.app_context():
+        load_twse_listed_stocks()
+        load_us_stock_categories()
+        load_us_stock_list()
+        print(f"已载入 {len(stock_symbols_to_name)} 个股票代码到名称的映射")
+
+
+# 获取股票数据接口
+@app.route('/api/stocks/<symbol>', methods=['GET'])
+def get_stock_data(symbol):
+    try:
+        symbol_name = unquote(symbol)
+
+        # 模拟股价数据 - 生成过去30天的数据
+        mock_data = []
+        current_date = datetime.datetime.now()
+
+        # 设置起始价格 - 可以根据股票代码生成一个伪随机的起始价格
+        try:
+            base_price = int(int(symbol_name) % 1000 + 100)  # 简单算法生成不同的起始价格
+        except ValueError:
+            # 如果股票代码不是纯数字（如美股），使用默认价格
+            base_price = 200
+
+        price = base_price
+
+        for i in range(30):
+            date = current_date - datetime.timedelta(days=i)
+
+            # 生成当天价格浮动
+            daily_change_percent = random.uniform(-2.0, 2.0)  # 每天涨跌幅范围
+            daily_change = price * daily_change_percent / 100.0
+
+            # 计算各项价格
+            open_price = price
+            close_price = price + daily_change
+            high_price = max(open_price, close_price) * random.uniform(1.01, 1.03)  # 最高价比开盘/收盘价高1-3%
+            low_price = min(open_price, close_price) * random.uniform(0.97, 0.99)  # 最低价比开盘/收盘价低1-3%
+
+            # 添加到数据列表
+            mock_data.append({
+                "date": date.strftime("%Y-%m-%d"),
+                "open": round(open_price, 2),
+                "high": round(high_price, 2),
+                "low": round(low_price, 2),
+                "close": round(close_price, 2),
+                "volume": random.randint(1000000, 5000000)
+            })
+
+            # 更新价格为当天收盘价，作为下一天的基准
+            price = close_price
+
+        # 按日期顺序返回（从早到晚）
+        mock_data.reverse()
+        return jsonify(mock_data)
+    except Exception as e:
+        print(f"获取股票数据失败: {str(e)}")
+        return jsonify({"error": str(e)}), 500
+
+
+# 现有的API端点
+@app.route('/api/news/<company>', methods=['GET'])
+def get_company_news(company):
+    try:
+        company_name = unquote(company)
+
+        # 如果输入的是股票代码，转换为公司名称
+        if company_name in stock_symbols_to_name:
+            company_name = stock_symbols_to_name[company_name]
+
+        # 从 JSON 文件读取新闻
+        with open('labeled_news_lr.json', 'r', encoding='utf-8') as f:
+            all_news = json.load(f)
+
+        # 过滤该公司的新闻
+        company_news = [news for news in all_news if news.get('company') == company_name]
+
+        # 不论有没有找到新闻，都返回200状态码
+        return jsonify(company_news)
+    except Exception as e:
+        print(f"获取新闻时出错: {str(e)}")
+        return jsonify({"error": str(e)}), 500
+
+
+# 新增API端点: 获取股票代码到名称的映射
+@app.route('/api/company-mappings', methods=['GET'])
+def get_company_mappings():
+    try:
+        return jsonify(stock_symbols_to_name)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+# 新增API端点: 获取台湾股票分类
+@app.route('/api/tw-stock-categories', methods=['GET'])
+def get_tw_stock_categories():
+    try:
+        data = load_tw_stock_categories()
+        return jsonify(data)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+# 新增API端点: 获取台湾上市股票
+@app.route('/api/tw-stocks', methods=['GET'])
+def get_tw_stocks():
+    try:
+        stocks = load_twse_listed_stocks()
+        return jsonify(stocks)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+# 新增API端点: 获取美国股票分类
+@app.route('/api/us-stock-categories', methods=['GET'])
+def get_us_stock_categories():
+    try:
+        data = load_us_stock_categories()
+        return jsonify(data)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+# 新增API端点: 获取美国股票列表
+@app.route('/api/us-stocks', methods=['GET'])
+def get_us_stocks():
+    try:
+        stocks = load_us_stock_list()
+        return jsonify(stocks)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+# 新增API端点: 搜索股票
+@app.route('/api/search-stocks', methods=['GET'])
+def search_stocks():
+    try:
+        query = request.args.get('q', '').lower()
+        if not query:
+            return jsonify([]), 400
+
+        # 整合台湾和美国股票数据进行搜索
+        tw_stocks = load_twse_listed_stocks()
+        us_stocks = load_us_stock_list()
+
+        results = []
+
+        # 搜索台湾股票
+        for stock in tw_stocks:
+            ticker = str(stock['有價證券代號'])
+            name = stock['有價證券名稱']
+
+            if query in ticker.lower() or query in name.lower():
+                results.append({
+                    "symbol": ticker,
+                    "name": name,
+                    "market": "TW",
+                    "industry": stock.get('產業別', '')
+                })
+
+        # 搜索美国股票
+        for stock in us_stocks:
+            ticker = stock['Symbol']
+            en_name = stock['English name']
+            cn_name = stock['Chinese name']
+
+            if query in ticker.lower() or (en_name and query in en_name.lower()) or (
+                    cn_name and query in cn_name.lower()):
+                results.append({
+                    "symbol": ticker,
+                    "name": en_name,
+                    "chinese_name": cn_name,
+                    "market": "US",
+                    "industry": stock.get('Industry', '')
+                })
+
+        # 只返回前20个结果
+        return jsonify(results[:20])
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
 
 @app.route('/api/analyze/sentiment', methods=['POST'])
 def analyze_sentiment():
@@ -74,80 +308,82 @@ def analyze_sentiment():
             "summary": "系統錯誤",
             "suggestions": ["請稍後重試"]
         }), 500
-
-@app.route('/api/stocks/<company>', methods=['GET'])
-def get_stock_data(company):
-    try:
-        # 解碼 URL 中的中文字符
-        company_name = unquote(company)
-        
-        # 模擬股價數據
-        mock_data = []
-        current_date = datetime.now()
-        
-        for i in range(30):
-            date = current_date - timedelta(days=i)
-            mock_data.append({
-                "date": date.strftime("%Y-%m-%d"),
-                "open": random.uniform(500, 550),
-                "high": random.uniform(550, 600),
-                "low": random.uniform(450, 500),
-                "close": random.uniform(500, 550),
-                "volume": random.randint(1000000, 5000000)
-            })
-            
-        return jsonify(mock_data)
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
-@app.route('/api/news/<company>', methods=['GET'])
-def get_company_news(company):
-    try:
-        company_name = unquote(company)
-        
-        # 從 JSON 檔案讀取新聞
-        with open('labeled_news_lr.json', 'r', encoding='utf-8') as f:
-            all_news = json.load(f)
-            
-        # 過濾該公司的新聞
-        company_news = [news for news in all_news if news.get('company') == company_name]
-        
-        if not company_news:
-            return jsonify([]), 404
-            
-        return jsonify(company_news)
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
+# 修改 get_companies 函数以支持分页
 @app.route('/api/companies', methods=['GET'])
 def get_companies():
     try:
-        # 讀取新聞資料
-        with open('labeled_news_lr.json', 'r', encoding='utf-8') as f:
-            news_data = json.load(f)
-        
-        # 整理公司資訊
-        companies = []
-        seen = set()
-        
-        for news in news_data:
-            company = news.get('company')
-            if company and company not in seen:
+        # 获取市场参数，如果没有则默认为TW
+        market = request.args.get('market', 'TW').upper()
+
+        # 分页参数
+        page = int(request.args.get('page', 1))
+        page_size = int(request.args.get('page_size', 10))
+
+        # 计算分页索引
+        start_index = (page - 1) * page_size
+        end_index = start_index + page_size
+
+        if market == 'TW':
+            # 读取台湾股票数据
+            stocks = load_twse_listed_stocks()
+            total_count = len(stocks)
+
+            # 分页处理
+            paginated_stocks = stocks[start_index:end_index]
+            companies = []
+
+            for stock in paginated_stocks:
+                ticker = str(stock['有價證券代號'])
                 companies.append({
-                    "symbol": company,
-                    "name": company,
-                    # 加入隨機漲跌數據作為展示
+                    "symbol": ticker,
+                    "name": stock['有價證券名稱'],
+                    "industry": stock.get('產業別', ''),
+                    # 模拟价格数据
                     "price": round(random.uniform(100, 1000), 2),
                     "change": round(random.uniform(-10, 10), 2)
                 })
-                seen.add(company)
-        
-        return jsonify(companies)
+        elif market == 'US':
+            # 读取美国股票数据
+            stocks = load_us_stock_list()
+            total_count = len(stocks)
+
+            # 分页处理
+            paginated_stocks = stocks[start_index:end_index]
+            companies = []
+
+            for stock in paginated_stocks:
+                companies.append({
+                    "symbol": stock['Symbol'],
+                    "name": stock['English name'],
+                    "chinese_name": stock['Chinese name'],
+                    "industry": stock.get('Industry', ''),
+                    # 模拟价格数据
+                    "price": round(random.uniform(100, 1000), 2),
+                    "change": round(random.uniform(-10, 10), 2)
+                })
+        else:
+            return jsonify({"error": "不支持的市场参数"}), 400
+
+        # 返回结果，包含分页信息
+        return jsonify({
+            "data": companies,
+            "pagination": {
+                "page": page,
+                "page_size": page_size,
+                "total": total_count,
+                "total_pages": math.ceil(total_count / page_size)
+            }
+        })
     except Exception as e:
-        print(f"載入公司列表時發生錯誤: {str(e)}")
+        print(f"载入公司列表时发生错误: {str(e)}")
         return jsonify({"error": str(e)}), 500
 
+
 if __name__ == '__main__':
-    print("啟動 Flask 服務器...")
+    # 在启动应用之前初始化数据
+    initialize_data()
+
+    print("启动 Flask 服务器...")
     app.run(host='0.0.0.0', port=5001, debug=True)
+
 

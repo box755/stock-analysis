@@ -181,17 +181,21 @@ const loadData = async () => {
     // 使用 Promise.all 並加入錯誤處理
     const [stockResp, newsResp] = await Promise.all([
       axios
-        .get(`http://localhost:5001/api/stocks/${encodedSymbol}`)
-        .catch((error) => {
-          console.error("載入股價數據失敗:", error);
-          return { data: [] };
-        }),
+          .get(`http://localhost:5001/api/stocks/${encodedSymbol}`)
+          .catch((error) => {
+            console.error("載入股價數據失敗:", error);
+            return { data: [] };
+          }),
       axios
-        .get(`http://localhost:5001/api/news/${encodedSymbol}`)
-        .catch((error) => {
-          console.error("載入新聞數據失敗:", error);
-          return { data: [] };
-        }),
+          .get(`http://localhost:5001/api/news/${encodedSymbol}`)
+          .catch((error) => {
+            console.error("載入新聞數據失敗:", error);
+            // 如果是404，不顯示錯誤，只返回空數組
+            if (error.response && error.response.status === 404) {
+              return { data: [] };
+            }
+            return { data: [] };
+          }),
     ]);
 
     // 更新數據
@@ -199,14 +203,30 @@ const loadData = async () => {
       stockData.value = stockResp.data;
     }
 
+    // 查詢股票名稱 - 如果已經有映射就直接使用
+    let stockName = symbol.value;
+    try {
+      const mappingResp = await axios.get('http://localhost:5001/api/company-mappings');
+      if (mappingResp.data && mappingResp.data[symbol.value]) {
+        stockName = mappingResp.data[symbol.value];
+      }
+    } catch (error) {
+      console.error("載入公司映射失敗:", error);
+    }
+
     if (newsResp.data) {
       newsList.value = newsResp.data;
-      // 更新公司資訊
-      companyInfo.value = {
-        symbol: symbol.value,
-        name: newsResp.data[0]?.company || symbol.value,
-      };
+      // 如果有新聞，使用新聞中的公司名
+      if (newsResp.data.length > 0 && newsResp.data[0].company) {
+        stockName = newsResp.data[0].company;
+      }
     }
+
+    // 更新公司資訊
+    companyInfo.value = {
+      symbol: symbol.value,
+      name: stockName
+    };
   } catch (error) {
     console.error("數據載入失敗:", error);
     ElMessage.error("無法載入公司資料，請稍後再試");
