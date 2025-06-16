@@ -5,9 +5,9 @@
         <el-card class="welcome-card" shadow="hover">
           <div class="welcome-content">
             <div class="welcome-text">
-              <h1>股票数据分析平台</h1>
+              <h1>台灣股票數據分析平台</h1>
               <p>
-                欢迎使用股票数据分析平台，这里提供市场趋势分析、股票实时数据和智能预测功能。
+                歡迎使用台灣股票數據分析平台，這裡提供市場趨勢分析、股票實時數據和智能預測功能。
               </p>
               <div class="action-buttons">
                 <el-button
@@ -18,15 +18,7 @@
                   <el-icon><Refresh /></el-icon>
                   刷新数据
                 </el-button>
-
-                <el-radio-group
-                  v-model="selectedMarket"
-                  @change="switchMarket"
-                  size="large"
-                >
-                  <el-radio-button label="TW">台灣市場</el-radio-button>
-                  <el-radio-button label="US">美國市場</el-radio-button>
-                </el-radio-group>
+                <!-- 刪除市場切換按鈕 -->
               </div>
             </div>
             <div class="welcome-image">
@@ -48,9 +40,7 @@
               class="index-item"
               :class="marketIndex.change >= 0 ? 'positive' : 'negative'"
             >
-              <div class="index-name">
-                {{ selectedMarket === "TW" ? "加權指數" : "S&P 500" }}
-              </div>
+              <div class="index-name">加權指數</div>
               <div class="index-price">
                 {{ formatPrice(marketIndex.price) }}
               </div>
@@ -76,9 +66,7 @@
             <div class="card-header">
               <div class="title-section">
                 <el-icon><Coin /></el-icon>
-                <span>{{
-                  selectedMarket === "TW" ? "台灣熱門股票" : "美國熱門股票"
-                }}</span>
+                <span>台灣熱門股票</span>
               </div>
               <div class="action-section">
                 <el-autocomplete
@@ -97,12 +85,6 @@
                     <div class="search-result-item">
                       <span class="symbol">{{ item.symbol }}</span>
                       <span class="name">{{ item.name }}</span>
-                      <span
-                        class="market-tag"
-                        :class="item.market === 'TW' ? 'tw-tag' : 'us-tag'"
-                      >
-                        {{ item.market }}
-                      </span>
                     </div>
                   </template>
                 </el-autocomplete>
@@ -252,7 +234,7 @@
           <template #header>
             <div class="card-header">
               <el-icon><ChatLineRound /></el-icon>
-              <span>市场情绪分析</span>
+              <span>市场情緒分析</span>
             </div>
           </template>
 
@@ -305,7 +287,7 @@
           </div>
           <div v-else class="empty-sentiment">
             <el-icon><Loading /></el-icon>
-            <p>分析市场情绪中...</p>
+            <p>分析市场情緒中...</p>
           </div>
         </el-card>
       </el-col>
@@ -422,7 +404,6 @@ const {
   stockChart,
   predictionChart,
   filteredStocks,
-  currentMarket,
 } = storeToRefs(stockStore);
 const { sentimentSummary } = storeToRefs(sentimentStore);
 
@@ -430,7 +411,6 @@ const { sentimentSummary } = storeToRefs(sentimentStore);
 const searchQuery = ref("");
 const stockDetailVisible = ref(false);
 const selectedStockChart = ref(null);
-const selectedMarket = ref("TW");
 const currentPage = ref(1);
 const pageSize = ref(10);
 const totalStocks = ref(0);
@@ -487,16 +467,13 @@ const currentStockChart = computed(() => {
 
 // Methods
 const refreshDashboard = () => {
-  stockStore.fetchStocks(
-    selectedMarket.value,
-    currentPage.value,
-    pageSize.value
-  );
-  sentimentStore.fetchSentimentData();
-  fetchMarketIndex(selectedMarket.value); // 使用 API 獲取最新指數
+  stockStore.fetchStocks(currentPage.value, pageSize.value);
+  loadSentimentAnalysis();
+  fetchMarketIndex();
+  loadIndexChart();
 
   ElMessage({
-    message: "数据已刷新",
+    message: "數據已刷新",
     type: "success",
   });
 };
@@ -520,53 +497,54 @@ const viewStockDetail = (row) => {
   });
 };
 
-const switchMarket = (market) => {
-  // 切换市场时重置页码
-  currentPage.value = 1;
-  stockStore.switchMarket(market, pageSize.value);
-  fetchMarketIndex(market); // 使用 API 獲取新市場的指數
-};
-
 // 定義獲取市場指數的函數
-const fetchMarketIndex = async (market) => {
+const fetchMarketIndex = async () => {
   try {
-    const response = await axios.get(
-      `http://localhost:5001/api/market-index/${market}`
-    );
+    const response = await axios.get(`http://localhost:5001/api/market-index/TW`);
     if (response.data) {
       marketIndex.value = response.data;
     }
   } catch (error) {
     console.error("獲取市場指數失敗:", error);
     // 使用默認值
-    if (market === "TW") {
-      marketIndex.value = {
-        name: "加權指數",
-        price: 18902.35,
-        change: 82.45,
-        changePercent: 0.44,
-      };
-    } else {
-      marketIndex.value = {
-        name: "S&P 500",
-        price: 4802.35,
-        change: 12.45,
-        changePercent: 0.26,
-      };
+    marketIndex.value = {
+      name: "加權指數",
+      price: 18902.35,
+      change: 82.45,
+      changePercent: 0.44,
+    };
+  }
+};
+
+// 確保 loadSentimentAnalysis 函數能夠正確調用 API
+const loadSentimentAnalysis = async () => {
+  try {
+    loading.value = true;
+    
+    const response = await axios.get(`http://localhost:5001/api/sentiment-analysis/TW`);
+    
+    if (response.data) {
+      console.log("情緒分析數據:", response.data);
+      sentimentStore.updateSentimentData(response.data);
     }
+  } catch (error) {
+    console.error('獲取情緒分析數據失敗:', error);
+    ElMessage.error('無法獲取市場情緒數據');
+  } finally {
+    loading.value = false;
   }
 };
 
 // 处理页码变化
 const handleCurrentChange = (newPage) => {
   currentPage.value = newPage;
-  stockStore.fetchStocks(selectedMarket.value, newPage, pageSize.value);
+  stockStore.fetchStocks(newPage, pageSize.value);
 };
 
 // 处理每页条数变化
 const handleSizeChange = (newSize) => {
   pageSize.value = newSize;
-  stockStore.fetchStocks(selectedMarket.value, currentPage.value, newSize);
+  stockStore.fetchStocks(currentPage.value, newSize);
 };
 
 // 股票搜索
@@ -586,11 +564,6 @@ const querySearch = async (queryString, cb) => {
 };
 
 const handleSelect = (item) => {
-  if (item.market !== selectedMarket.value) {
-    selectedMarket.value = item.market;
-    stockStore.switchMarket(item.market);
-  }
-
   // 查看股票詳情
   viewStockDetail(item);
 
@@ -598,22 +571,17 @@ const handleSelect = (item) => {
   searchQuery.value = "";
 };
 
-watch(
-  () => selectedMarket.value,
-  (newMarket) => {
-    stockStore.switchMarket(newMarket);
-  }
-);
-
 onMounted(() => {
-  // 初始化股票数据
+  // 初始化股票數據
   stockStore.initializeData(pageSize.value);
-  sentimentStore.fetchSentimentData();
 
-  // 獲取市場指數 (從後端 API)
-  fetchMarketIndex(selectedMarket.value);
+  // 獲取市場指數
+  fetchMarketIndex();
 
-  // 監聽分页數據
+  // 獲取真實的情緒分析數據
+  loadSentimentAnalysis();
+
+  // 監聽分頁數據
   watch(
     () => stockStore.pagination,
     (newPagination) => {
@@ -626,43 +594,19 @@ onMounted(() => {
 
   // 載入台股綜合指數 K 線圖
   loadIndexChart();
-
-  // 當市場變更時更新 K 線圖
-  watch(
-    () => selectedMarket.value,
-    (newMarket) => {
-      loadIndexChart();
-    }
-  );
 });
 
-// 新增載入指數 K 線圖的函數
+// 載入指數 K 線圖的函數
 const loadIndexChart = async () => {
   try {
-    // 根據所選市場載入對應的指數
-    const indexSymbol = selectedMarket.value === "TW" ? "^TWII" : "^GSPC";
-    // 獲取指數的 K 線圖數據
-    await stockStore.fetchStockDetail(indexSymbol);
+    // 獲取台灣加權指數的 K 線圖數據
+    await stockStore.fetchStockDetail("^TWII");
     // 將獲取的 K 線圖數據設置為當前選中的圖表數據
     selectedStockChart.value = stockStore.stockChart;
   } catch (error) {
     console.error("載入指數 K 線圖失敗:", error);
   }
 };
-
-// 移除原本使用模擬數據的 setTimeout 部分
-// setTimeout(() => {
-//   if (stocks.value.length > 0) {
-//     const randomIndex = Math.floor(
-//       Math.random() * Math.min(5, stocks.value.length)
-//     );
-//     const randomStock = stocks.value[randomIndex];
-//     if (randomStock) {
-//       stockStore.fetchStockDetail(randomStock.symbol);
-//       selectedStockChart.value = stockStore.generateMockChartData();
-//     }
-//   }
-// }, 1000);
 </script>
 
 <style scoped>

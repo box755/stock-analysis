@@ -11,8 +11,8 @@ export const useStockStore = defineStore('stock', () => {
     const loading = ref(false)
     const error = ref(null)
     const symbolToNameMap = ref({}) // 股票代码到名称的映射
-    const currentMarket = ref('TW') // 当前市场 'TW' 或 'US'
-    const pagination = ref(null) // 新增分页信息
+    const currentMarket = ref('TW') // 固定為台灣市場
+    const pagination = ref(null) // 分页信息
 
     // Computed
     const filteredStocks = computed(() => {
@@ -36,21 +36,20 @@ export const useStockStore = defineStore('stock', () => {
     })
 
     // Actions
-    const fetchStocks = async (market = currentMarket.value, page = 1, pageSize = 10) => {
+    const fetchStocks = async (page = 1, pageSize = 10) => {
         loading.value = true
         error.value = null
-        currentMarket.value = market
 
         try {
             const response = await axios.get(
-                `http://localhost:5001/api/companies?market=${market}&page=${page}&page_size=${pageSize}`
+                `http://localhost:5001/api/companies?market=TW&page=${page}&page_size=${pageSize}`
             )
 
             if (response.data && response.data.data) {
                 // 更新股票列表
                 stocks.value = response.data.data.map((stock) => ({
                     ...stock,
-                    market,
+                    market: 'TW',
                     price: Number(stock.price) || 0,
                     change: Number(stock.change) || 0,
                     changePercent: stock.changePercent !== undefined ?
@@ -82,7 +81,7 @@ export const useStockStore = defineStore('stock', () => {
         }
     }
 
-    const fetchStockDetail = async (symbol, market = 'TW') => {
+    const fetchStockDetail = async (symbol) => {
         loading.value = true
         error.value = null
 
@@ -92,7 +91,7 @@ export const useStockStore = defineStore('stock', () => {
 
             // 找到基本信息
             const stock = stocks.value.find(s => s.symbol === symbol) ||
-                { symbol, name: symbolToNameMap.value[symbol] || symbol, price: 0, change: 0, changePercent: 0, market }
+                { symbol, name: symbolToNameMap.value[symbol] || symbol, price: 0, change: 0, changePercent: 0, market: 'TW' }
 
             if (response.data) {
                 // 使用API的数据生成K线图数据
@@ -118,7 +117,7 @@ export const useStockStore = defineStore('stock', () => {
 
             // 使用模拟数据
             const stock = stocks.value.find(s => s.symbol === symbol) ||
-                { symbol, name: symbolToNameMap.value[symbol] || symbol, price: 0, change: 0, market }
+                { symbol, name: symbolToNameMap.value[symbol] || symbol, price: 0, change: 0, market: 'TW' }
 
             currentStock.value = {
                 ...stock,
@@ -193,14 +192,31 @@ export const useStockStore = defineStore('stock', () => {
     // 初始化数据
     const initializeData = async (pageSize = 10) => {
         await fetchSymbolToNameMap()
-        await fetchStocks(currentMarket.value, 1, pageSize)
+        await fetchStocks(1, pageSize)
     }
 
-    // 切换市场
-    const switchMarket = (market, pageSize = 10) => {
-        if (market !== currentMarket.value) {
-            currentMarket.value = market
-            fetchStocks(market, 1, pageSize) // 重置到第一页
+    const fetchStockPrediction = async (symbol) => {
+        loading.value = true
+        error.value = null
+
+        try {
+            const response = await axios.get(`/api/stocks/${symbol}/predict?days=7&use_ml=true`)
+            const predictionData = response.data
+            
+            // 將後端數據轉換為圖表所需格式
+            const labels = predictionData.predictions.map(p => p.date)
+            const actual = Array(labels.length).fill(null)
+            const predicted = predictionData.predictions.map(p => p.price)
+            
+            // 第一個點是當前價格，設為歷史數據的最後一點
+            actual[0] = predictionData.current_price
+            
+            predictionChart.value = { labels, actual, predicted }
+        } catch (err) {
+            error.value = '獲取預測數據失敗'
+            console.error('Error fetching stock prediction:', err)
+        } finally {
+            loading.value = false
         }
     }
 
@@ -227,6 +243,6 @@ export const useStockStore = defineStore('stock', () => {
         generateMockChartData,
         generateMockPredictionData,
         initializeData,
-        switchMarket
+        fetchStockPrediction
     }
 })

@@ -95,7 +95,9 @@
                   </el-tag>
                 </div>
                 <!-- 使用 title 或 text 顯示標題 -->
-                <div class="news-title">{{ news.title || truncateText(news.text, 50) }}</div>
+                <div class="news-title">
+                  {{ news.title || truncateText(news.text, 50) }}
+                </div>
                 <!-- 使用 content 或 text 顯示內容 -->
                 <div class="news-preview">
                   {{ truncateText(news.content || news.text, 100) }}
@@ -115,7 +117,9 @@
     >
       <div class="news-detail">
         <!-- 使用 content 或 text 顯示全文 -->
-        <p class="news-content">{{ selectedNews?.content || selectedNews?.text }}</p>
+        <p class="news-content">
+          {{ selectedNews?.content || selectedNews?.text }}
+        </p>
         <div class="news-analysis">
           <h4>
             情感分析分數：
@@ -176,52 +180,54 @@ const loadData = async () => {
   loading.value = true;
   try {
     const encodedSymbol = encodeURIComponent(symbol.value);
-    
+
     // 股票數據獲取
-    const stockResp = await axios.get(`http://localhost:5001/api/stocks/${encodedSymbol}`)
-      .catch(error => {
-        console.error('載入股價數據失敗:', error);
+    const stockResp = await axios
+      .get(`http://localhost:5001/api/stocks/${encodedSymbol}`)
+      .catch((error) => {
+        console.error("載入股價數據失敗:", error);
         return { data: [] };
       });
-    
+
     // 新聞數據獲取
-    const newsResp = await axios.get(`http://localhost:5001/api/news/${encodedSymbol}`)
-      .catch(error => {
-        console.error('載入新聞數據失敗:', error);
+    const newsResp = await axios
+      .get(`http://localhost:5001/api/news/${encodedSymbol}`)
+      .catch((error) => {
+        console.error("載入新聞數據失敗:", error);
         return { data: [] };
       });
-    
+
     // 處理股票數據
     if (stockResp.data && stockResp.data.length > 0) {
-      stockData.value = stockResp.data.map(item => ({
+      stockData.value = stockResp.data.map((item) => ({
         date: item.date,
         open: item.open,
         high: item.high,
         low: item.low,
         close: item.close,
-        volume: item.volume
+        volume: item.volume,
       }));
     }
-    
+
     // 處理新聞數據
     if (newsResp.data && newsResp.data.length > 0) {
       newsList.value = newsResp.data;
-      
+
       // 更新公司名稱
       if (newsResp.data[0]?.company) {
         companyInfo.value = {
           symbol: symbol.value,
-          name: newsResp.data[0].company
+          name: newsResp.data[0].company,
         };
       }
     } else {
       // 如果沒有新聞數據，設置一個空數組並給出提示
       newsList.value = [];
-      ElMessage.warning('未找到相關新聞數據');
+      ElMessage.warning("未找到相關新聞數據");
     }
   } catch (error) {
-    console.error('載入資料失敗:', error);
-    ElMessage.error('載入資料失敗');
+    console.error("載入資料失敗:", error);
+    ElMessage.error("載入資料失敗");
   } finally {
     loading.value = false;
   }
@@ -261,11 +267,11 @@ const generateAIAnalysis = async () => {
   generatingAnalysis.value = true;
   try {
     // 準備要傳送的新聞資料
-    const newsForAnalysis = newsList.value.map(news => ({
+    const newsForAnalysis = newsList.value.map((news) => ({
       title: news.title || "",
       content: news.content || news.text || "",
       impact_pct: news.impact_pct,
-      date: news.date
+      date: news.date,
     }));
 
     const response = await axios.post(
